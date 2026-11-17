@@ -11,6 +11,18 @@ sauvegardé avec ses poids.
 - :class:`CNNRegressor` : encodeur convolutif 1D à convolutions dilatées, tronc commun et
   tête physique :class:`PhysicalHead` (contraintes garanties par construction), ou tête
   libre :class:`FreeHead` pour l'ablation.
+- :class:`CNNGRURegressor` : encodeur hybride convolutions + GRU, dans l'esprit du
+  CNN-GRU de l'article de coEnergy (dont l'architecture détaillée n'est pas publiée),
+  avec la même tête physique, pour une comparaison à protocole identique.
+
+Noms utilisés par :func:`build_model` et ``train.py`` :
+
+- ``mean``, ``ridge`` : références ;
+- ``cnn`` : modèle principal ;
+- ``cnn_gru`` : variante d'encodeur inspirée de l'article ;
+- ``cnn_free`` : ablation sans contraintes physiques ;
+- ``cnn_hlc`` : ablation mono-cible, même réseau entraîné sur le seul HLC (le cadre de
+  l'article), pour mesurer l'effet de l'apprentissage multi-sorties.
 """
 
 import math
@@ -22,7 +34,9 @@ from torch.nn import functional as F
 from coenergy.dataset import N_STEPS, TARGET_LABELS, TargetScaler
 
 IDX = {label: i for i, label in enumerate(TARGET_LABELS)}
-MODEL_NAMES: tuple[str, ...] = ("mean", "ridge", "cnn", "cnn_free")
+MODEL_NAMES: tuple[str, ...] = ("mean", "ridge", "cnn", "cnn_gru", "cnn_free", "cnn_hlc")
+TRAINED_TARGETS: dict[str, tuple[str, ...]] = {"cnn_hlc": ("HLC",)}
+"""Cibles entraînées quand ce n'est pas l'ensemble des six (ablation mono-cible)."""
 
 
 # --------------------------------------------------------------------------- références
@@ -177,17 +191,60 @@ class CNNRegressor(nn.Module):
             return self.head(h)
 
 
+class CNNGRURegressor(nn.Module):
+    """Encodeur hybride convolutions + GRU, puis tronc commun et tête physique.
+
+    - deux blocs convolutifs extraient les motifs locaux (réponse aux commutations) et
+      réduisent la résolution de 480 à 120 pas (sous-échantillonnage par 4, après les
+      convolutions, donc sans perdre les premières minutes qui suivent une commutation) ;
+    - un GRU à deux couches lit la séquence dans l'ordre du temps et accumule l'historique
+      (rôle des dépendances longues dans l'article) ;
+    - le résumé combine le dernier état caché et la moyenne temporelle des sorties.
+    """
+
+    def __init__(self, scaler: TargetScaler, channels: int = 64, hidden: int = 128,
+                 gru_hidden: int = 128, constrained: bool = True, dropout: float = 0.1) -> None:
+        super().__init__()
+        self.scaler = scaler
+        self.register_buffer("time", torch.linspace(0.0, 1.0, N_STEPS).view(1, 1, -1))
+
+        def conv_block(c_in: int, c_out: int) -> nn.Sequential:
+            return nn.Sequential(nn.Conv1d(c_in, c_out, 5, padding=2), nn.BatchNorm1d(c_out),
+                                 nn.GELU(), nn.Conv1d(c_out, c_out, 5, padding=2),
+                                 nn.BatchNorm1d(c_out), nn.GELU(), nn.MaxPool1d(2))
+
+        self.conv = nn.Sequential(conv_block(3, channels), conv_block(channels, channels))
+        self.gru = nn.GRU(channels, gru_hidden, num_layers=2, batch_first=True, dropout=dropout)
+        self.trunk = nn.Sequential(nn.Linear(2 * gru_hidden, hidden), nn.GELU(),
+                                   nn.Dropout(dropout), nn.Linear(hidden, hidden), nn.GELU())
+        self.head: nn.Module = PhysicalHead(hidden) if constrained else FreeHead(hidden, scaler)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        time = self.time.expand(x.shape[0], -1, -1).to(x.dtype)
+        h = self.conv(torch.cat([x, time], dim=1)).transpose(1, 2)  # (n, 120, canaux)
+        out, last = self.gru(h)
+        h = self.trunk(torch.cat([last[-1], out.mean(dim=1)], dim=1))
+        with torch.autocast(device_type=x.device.type, enabled=False):
+            return self.head(h)
+
+
 # --------------------------------------------------------------------------- fabrique
 def build_model(name: str, scaler: TargetScaler, channels: int = 64,
                 hidden: int = 128) -> nn.Module:
-    """Construit un modèle par son nom (``MODEL_NAMES``), sans l'entraîner."""
+    """Construit un modèle par son nom (``MODEL_NAMES``), sans l'entraîner.
+
+    ``cnn_hlc`` utilise la tête libre : avec une perte limitée au HLC, une tête physique
+    imposerait une structure sur des sorties qui ne sont pas entraînées.
+    """
     if name == "mean":
         return MeanBaseline(scaler)
     if name == "ridge":
         return LinearBaseline(scaler)
-    if name in ("cnn", "cnn_free"):
+    if name in ("cnn", "cnn_free", "cnn_hlc"):
         return CNNRegressor(scaler, channels=channels, hidden=hidden,
                             constrained=(name == "cnn"))
+    if name == "cnn_gru":
+        return CNNGRURegressor(scaler, channels=channels, hidden=hidden)
     raise ValueError(f"Modèle inconnu : {name} (attendu : {MODEL_NAMES})")
 
 

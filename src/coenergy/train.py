@@ -38,8 +38,8 @@ from coenergy.dataset import (SPLIT_NAMES, SPLIT_PATH, TARGET_FAMILIES, TARGET_L
                               SplitData, TargetScaler, load_split_data, load_splits)
 from coenergy.evaluation import (capacity_metrics, family_metrics, physical_checks,
                                  regression_metrics)
-from coenergy.models import (MODEL_NAMES, LinearBaseline, MeanBaseline, PhysicalHead,
-                             build_model, count_parameters, save_checkpoint)
+from coenergy.models import (MODEL_NAMES, TRAINED_TARGETS, LinearBaseline, MeanBaseline,
+                             PhysicalHead, build_model, count_parameters, save_checkpoint)
 
 EVAL_SPLITS: tuple[str, ...] = ("val", "test_random", "test_new_u")
 
@@ -49,9 +49,18 @@ def log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
 
-def loss_weights() -> torch.Tensor:
-    """Poids par cible : chaque famille pèse 1/3, répartie également entre ses cibles."""
+def loss_weights(model_name: str | None = None) -> torch.Tensor:
+    """Poids par cible : chaque famille pèse 1/3, répartie également entre ses cibles.
+
+    Pour une ablation mono-cible (``TRAINED_TARGETS``), seules les cibles entraînées ont un
+    poids non nul.
+    """
     w = torch.zeros(len(TARGET_LABELS))
+    trained = TRAINED_TARGETS.get(model_name or "")
+    if trained:
+        for lab in trained:
+            w[TARGET_LABELS.index(lab)] = 1.0 / len(trained)
+        return w
     for labels in TARGET_FAMILIES.values():
         for lab in labels:
             w[TARGET_LABELS.index(lab)] = 1.0 / (len(TARGET_FAMILIES) * len(labels))
@@ -124,13 +133,16 @@ def fit_ridge(model: LinearBaseline, train: SplitData, val: SplitData, device: t
 # --------------------------------------------------------------------------- réseau
 def train_network(model: nn.Module, train: SplitData, val: SplitData, device: torch.device,
                   epochs: int, batch_size: int, lr: float, weight_decay: float,
-                  patience: int, seed: int) -> dict:
+                  patience: int, seed: int, weights: torch.Tensor) -> dict:
     """Boucle d'entraînement : AdamW, schedule one-cycle, arrêt anticipé sur la validation.
 
     Sur GPU, le jeu d'entraînement est placé entièrement en mémoire GPU (≈ 3 Go pour
     l'ensemble complet), ce qui évite tout coût de transfert par mini-lot.
+
+    Args:
+        weights: poids de la perte par cible (voir :func:`loss_weights`).
     """
-    weights = loss_weights().to(device)
+    weights = weights.to(device)
     scaler = model.scaler
     x_train, y_train = train.x.to(device), train.y.to(device)
     n = len(train)
@@ -247,7 +259,8 @@ def main(argv: list[str] | None = None) -> None:
         history = fit_ridge(model, train, val, device)
     else:
         history = train_network(model, train, val, device, args.epochs, args.batch_size,
-                                args.lr, args.weight_decay, args.patience, args.seed)
+                                args.lr, args.weight_decay, args.patience, args.seed,
+                                loss_weights(args.model))
     fit_seconds = time.time() - fit_started
 
     config = {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()}
@@ -278,6 +291,7 @@ def main(argv: list[str] | None = None) -> None:
 
     run_info = {
         "model": args.model, "config": config, "sizes": sizes,
+        "trained_targets": list(TRAINED_TARGETS.get(args.model, TARGET_LABELS)),
         "n_parameters": count_parameters(model), "fit_seconds": fit_seconds,
         "total_seconds": time.time() - started, "device": str(device),
         "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else None,
