@@ -232,6 +232,34 @@ def inverse_r2(group: FixedExcitationGroup, model: str = "mlp", seed: int = 0) -
     return pd.Series(r2_score(g[test], pred), index=labels)
 
 
+def derived_time_constant_r2(group: FixedExcitationGroup, seed: int = 0) -> pd.Series:
+    """Compare deux façons de prédire ``log tau_n`` à partir de T (MLP, excitation fixée) :
+
+    - directement ;
+    - en prédisant ``log HLC`` et ``log C_n``, puis en calculant
+      ``log tau_n = log C_n - log HLC``.
+
+    Pour un prédicteur qui minimise l'erreur quadratique, les deux donnent la même
+    prédiction (la moyenne d'une différence est la différence des moyennes) : bien
+    prédire ``C_n`` ne permet pas de mieux prédire ``tau_n``.
+    """
+    y = np.asarray(group.y, np.float64)
+    log_hlc = np.log(y[:, TARGET_LABELS.index("HLC")])
+    log_tau_n = np.log(y[:, TARGET_LABELS.index("tau_n")])
+    log_c_n = log_tau_n + log_hlc
+    fit, test = split_indices(len(group), seed=seed)
+    direct = fit_mlp(group.t[fit], log_tau_n[fit, None], group.t[test], seed=seed)[:, 0]
+    pair = fit_mlp(group.t[fit], np.c_[log_hlc, log_c_n][fit], group.t[test], seed=seed)
+    derived = pair[:, 1] - pair[:, 0]
+    truth = log_tau_n[test, None]
+    return pd.Series({
+        "log tau_n prédit directement": float(r2_score(truth, direct[:, None])[0]),
+        "log tau_n = log C_n prédit − log HLC prédit": float(r2_score(truth, derived[:, None])[0]),
+        "R² de log C_n (prédit avec log HLC)": float(r2_score(log_c_n[test, None], pair[:, 1:])[0]),
+        "R² de log HLC (prédit avec log C_n)": float(r2_score(log_hlc[test, None], pair[:, :1])[0]),
+    })
+
+
 def canonical_correlations(group: FixedExcitationGroup, n_components: int = 20,
                            seed: int = 0) -> tuple[pd.Series, pd.DataFrame]:
     """Corrélations canoniques entre T(t) et les cinq paramètres indépendants du bâtiment.

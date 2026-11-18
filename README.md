@@ -16,6 +16,10 @@ construction $HLC = HLC_{ext} + HLC_{mit}$ et $\tau_n < \tau_\infty < \tau_b$.
 | R² | 0,43 | 0,47 | 0,28 | 0,26 | 0,13 | 0,10 |
 
 - Les performances sont au moins aussi bonnes sur des **excitations jamais vues à l'entraînement**.
+- Doubler l'entraînement (`cnn_gru_40ep`) ou quadrupler la taille du réseau (`cnn_gru_large`)
+  n'apporte pas de gain mesurable. Meilleurs scores obtenus toutes variantes confondues :
+  8,22 % d'erreur relative sur le HLC (R² = 0,433, `cnn_gru_large`), 9,02 % sur
+  $HLC_{ext}$ (R² = 0,477, `cnn_gru_40ep`), soit moins de 0,1 point d'écart avec le modèle retenu.
 - L'analyse d'identifiabilité montre que la limite tient aux données : en 8 h, la
   température renseigne surtout sur la chaleur **stockée** (la capacité apparente
   $C_n = \tau_n \cdot HLC$ est prédite avec R² = 0,84), et peu sur la chaleur **perdue**.
@@ -71,5 +75,7 @@ uv run python -m coenergy.train --model cnn_gru --epochs 20 --batch-size 1024 --
     --data-dir data/quentin_house --out-dir runs/cnn_gru
 ```
 
-Modèles disponibles : `mean`, `ridge`, `cnn`, `cnn_gru`, `cnn_free`, `cnn_hlc`. L'option
+Modèles disponibles : `mean`, `ridge`, `cnn`, `cnn_gru`, `cnn_free`, `cnn_hlc`. Les options
+`--epochs`, `--channels` et `--hidden` règlent la durée et la taille (par exemple
+`--channels 128 --hidden 256` pour `cnn_gru_large`). L'option
 `--batches 1 17 19 --max-per-batch 300` permet un test rapide sur CPU.

@@ -18,16 +18,24 @@ from coenergy.dataset import TARGET_FAMILIES, TARGET_LABELS
 from coenergy.evaluation import CAPACITY_LABELS
 
 RUNS_DIR = PROJECT_ROOT / "runs"
-MODEL_ORDER: tuple[str, ...] = ("mean", "ridge", "cnn", "cnn_gru", "cnn_free", "cnn_hlc")
+MODEL_ORDER: tuple[str, ...] = ("mean", "ridge", "cnn", "cnn_gru", "cnn_gru_40ep",
+                                 "cnn_gru_large", "cnn_free", "cnn_free_20ep", "cnn_hlc")
 MODEL_ROLES: dict[str, str] = {
     "mean": "référence : moyenne d'entraînement",
     "ridge": "référence : régression linéaire (ridge)",
     "cnn": "CNN dilaté, tête physique",
     "cnn_gru": "CNN-GRU, tête physique (modèle retenu)",
-    "cnn_free": "ablation : CNN sans contraintes physiques",
+    "cnn_gru_40ep": "CNN-GRU entraîné deux fois plus longtemps",
+    "cnn_gru_large": "CNN-GRU quatre fois plus grand",
+    "cnn_free": "ablation sans contraintes, 12 époques (essai initial)",
+    "cnn_free_20ep": "ablation : CNN sans contraintes physiques",
     "cnn_hlc": "ablation : CNN entraîné sur le seul HLC",
 }
-NETWORKS: tuple[str, ...] = ("cnn", "cnn_gru", "cnn_free", "cnn_hlc")
+MAIN_MODELS: tuple[str, ...] = ("mean", "ridge", "cnn", "cnn_gru", "cnn_free_20ep", "cnn_hlc")
+"""Modèles comparés dans les tableaux principaux (tous entraînés 20 époques)."""
+GRU_VARIANTS: tuple[str, ...] = ("cnn_gru", "cnn_gru_40ep", "cnn_gru_large")
+NETWORKS: tuple[str, ...] = ("cnn", "cnn_gru", "cnn_gru_40ep", "cnn_gru_large", "cnn_free_20ep")
+"""Réseaux multi-sorties, candidats au meilleur score."""
 EVAL_SPLITS: tuple[str, ...] = ("val", "test_random", "test_new_u")
 
 
@@ -125,6 +133,38 @@ def training_table(models: list[str] | None = None, runs_dir: Path = RUNS_DIR) -
             "GPU": info.get("gpu"),
         }
     return pd.DataFrame(rows).T
+
+
+def best_scores_table(split: str = "test_random", models: tuple[str, ...] = NETWORKS,
+                      runs_dir: Path = RUNS_DIR) -> pd.DataFrame:
+    """Pour chaque cible, le modèle qui obtient la plus faible erreur absolue moyenne,
+    avec ses scores (MAE, erreur relative, P95, R²)."""
+    rows = {}
+    for lab in TARGET_LABELS:
+        per_model = {m: load_metrics(m, runs_dir)[split]["per_target"][lab]
+                     for m in models if (runs_dir / m / "metrics.json").exists()}
+        best = min(per_model, key=lambda m: per_model[m]["MAE"])
+        rows[lab] = {"meilleur modèle": best, **{k: per_model[best][k] for k in
+                     ("MAE", "erreur relative (%)", "P95 |erreur|", "R²")}}
+    return pd.DataFrame(rows).T
+
+
+def training_gap_table(models: tuple[str, ...] = GRU_VARIANTS,
+                       runs_dir: Path = RUNS_DIR) -> pd.DataFrame:
+    """Pertes d'entraînement et de validation à la meilleure époque, et leur écart."""
+    rows = {}
+    for m in models:
+        h, info = load_history(m, runs_dir), load_run_info(m, runs_dir)
+        k = h["best_epoch"] - 1
+        rows[m] = {"paramètres": info.get("n_parameters"), "époques": len(h["epoch"]),
+                   "meilleure époque": h["best_epoch"],
+                   "durée (min)": round(info["fit_seconds"] / 60, 1),
+                   "perte d'entraînement": h["train_loss"][k], "perte de validation": h["val_loss"][k],
+                   "écart validation − entraînement": h["val_loss"][k] - h["train_loss"][k]}
+    out = pd.DataFrame(rows).T
+    counts = ["paramètres", "époques", "meilleure époque"]
+    out[counts] = out[counts].astype(int)
+    return out
 
 
 def shrinkage_table(pred: Predictions) -> pd.DataFrame:
