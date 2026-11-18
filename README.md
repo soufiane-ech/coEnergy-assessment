@@ -10,13 +10,14 @@ $HLC_{ext}$ et $HLC_{mit}$ (W/K), et les constantes de temps $\tau_b$, $\tau_n$,
 ## 1. Par où commencer
 
 Les deux notebooks sont **déjà exécutés** : figures, tableaux et résultats se lisent
-directement, sur GitHub ou dans VS Code, sans rien installer.
+directement, sur GitHub ou dans VS Code, sans rien installer. Ils se lisent dans l'ordre :
 
-| Ordre | Document | Contenu | Lecture |
-|---|---|---|---|
-| 1 | Ce README | Résultats, démarche, organisation, instructions d'exécution | 5 min |
-| 2 | [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb) | Analyse exploratoire du million de simulations. La **section 7 (Synthèse)** résume les constats, les hypothèses et les décisions de modélisation | 20 min |
-| 3 | [`notebooks/02_modelisation.ipynb`](notebooks/02_modelisation.ipynb) | Protocole, modèles, résultats par cible et par famille, ablations, identifiabilité, analyse critique des erreurs. La **section 8 (Conclusion)** résume l'ensemble | 25 min |
+1. [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb) : l'analyse exploratoire du million
+   de simulations. Sa section 7 résume les constats, les hypothèses et les décisions de
+   modélisation.
+2. [`notebooks/02_modelisation.ipynb`](notebooks/02_modelisation.ipynb) : le protocole, les
+   modèles, les résultats par cible et par famille, les ablations, l'identifiabilité et
+   l'analyse critique des erreurs. Sa section 8 conclut.
 
 Chaque section des notebooks suit le même schéma : une **question**, une **mesure**, une
 **lecture** des résultats, puis la **conséquence** pour la suite. Les affirmations sont
@@ -141,27 +142,25 @@ uv run jupyter lab
 
 Dans VS Code, il suffit d'ouvrir un notebook et de choisir le noyau `.venv` du projet.
 
-| Notebook | Durée sur CPU | Ce qui se passe |
-|---|---|---|
-| `01_eda.ipynb` | ≈ 3 min la première fois, < 1 min ensuite | une passe sur les 20 batchs, un à la fois, puis mise en cache dans `outputs/` |
-| `02_modelisation.ipynb` | ≈ 5 min | relit `runs/`, et la section 6 extrait deux groupes de simulations des données brutes |
-
-Les deux notebooks ont besoin des données dans `data/quentin_house/`. Les caches de
-`outputs/` sont recalculés automatiquement s'ils sont absents. Un seul batch est chargé en
-mémoire à la fois : 8 Go de RAM suffisent.
+- Les notebooks s'exécutent dans l'ordre, sur CPU, et ont besoin des données dans
+  `data/quentin_house/`.
+- `01_eda.ipynb` parcourt les 20 batchs un à un, puis met ses résultats en cache dans
+  `outputs/`. `02_modelisation.ipynb` relit les résultats d'entraînement de `runs/`.
+- Les caches de `outputs/` sont recalculés automatiquement s'ils sont absents. Un seul batch
+  est chargé en mémoire à la fois : 8 Go de RAM suffisent.
 
 ---
 
 ## 7. Réentraîner un modèle
 
-Le point d'entrée est `coenergy.train`. **Test rapide sur CPU** (≈ 1 min, trois batchs) :
+Le point d'entrée est `coenergy.train`. **Test rapide sur CPU**, sur trois batchs :
 
 ```bash
 uv run python -m coenergy.train --model cnn_gru --batches 1 17 19 --max-per-batch 300 \
     --epochs 2 --out-dir runs_test/cnn_gru
 ```
 
-**Entraînement complet**, sur GPU (≈ 20 min pour le CNN-GRU sur un Tesla T4) :
+**Entraînement complet**, sur GPU :
 
 ```bash
 python -m coenergy.train --model cnn_gru --epochs 20 --batch-size 1024 --lr 3e-3 \
@@ -189,7 +188,9 @@ python -m coenergy.train --model cnn_gru --epochs 20 --batch-size 1024 --lr 3e-3
 | Modules Python propres, typés, documentés, importés dans le notebook | `src/coenergy/` |
 | Environnement reproductible avec uv | `pyproject.toml`, `uv.lock` |
 | Modèles implémentés exclusivement en PyTorch | `src/coenergy/models.py`, `src/coenergy/train.py` |
-| Contrainte $HLC = HLC_{ext} + HLC_{mit}$ | tête physique, `models.PhysicalHead` ; vérification dans `02_modelisation`, section 4.1 |
-| Métriques par famille d'indicateurs | `02_modelisation`, section 3.2 |
-| Rigueur du protocole d'évaluation | `02_modelisation`, section 1 ; découpage dans `dataset.py` |
-| Analyse critique des erreurs | `02_modelisation`, sections 5 à 7 |
+
+---
+
+## Auteur
+
+Soufiane ECH-CHAFIY
