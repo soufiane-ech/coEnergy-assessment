@@ -167,6 +167,51 @@ def training_gap_table(models: tuple[str, ...] = GRU_VARIANTS,
     return out
 
 
+def error_by_true_value(pred: Predictions, target: str = "HLC", n_bins: int = 20) -> pd.DataFrame:
+    """Erreur signée (prédit − vrai) selon la valeur vraie, par tranches de même effectif.
+
+    Une erreur moyenne positive pour les petites valeurs et négative pour les grandes est
+    la signature du resserrement des prédictions vers la moyenne.
+    """
+    j = TARGET_LABELS.index(target)
+    yt, err = pred.y_true[:, j], pred.y_pred[:, j] - pred.y_true[:, j]
+    edges = np.quantile(yt, np.linspace(0, 1, n_bins + 1))
+    idx = np.clip(np.searchsorted(edges, yt, side="right") - 1, 0, n_bins - 1)
+    rows = [{"valeur vraie (centre)": yt[idx == b].mean(), "erreur moyenne": err[idx == b].mean(),
+             "écart-type de l'erreur": err[idx == b].std(), "simulations": int((idx == b).sum())}
+            for b in range(n_bins)]
+    return pd.DataFrame(rows)
+
+
+def error_by_signal(model: str, descriptors: pd.DataFrame, min_count: int = 300,
+                    target: str = "HLC", runs_dir: Path = RUNS_DIR) -> pd.DataFrame:
+    """Erreur relative moyenne par signal U, sur la validation et les deux tests réunis.
+
+    Args:
+        descriptors: tableau ``per_sim`` de l'EDA (colonnes ``u_hash``, ``n_switches``,
+            ``duty``), indexé par l'index global.
+        min_count: effectif minimal d'un signal pour être classé.
+
+    Returns:
+        Une ligne par signal, triée de la plus faible à la plus forte erreur, avec son rang.
+    """
+    j = TARGET_LABELS.index(target)
+    parts = []
+    for split in EVAL_SPLITS:
+        p = load_predictions(model, split, runs_dir)
+        parts.append(pd.DataFrame({
+            "u_hash": descriptors.loc[p.global_idx, "u_hash"].to_numpy(),
+            "erreur relative (%)": 100 * np.abs(p.y_pred[:, j] - p.y_true[:, j]) / p.y_true[:, j]}))
+    table = pd.concat(parts).groupby("u_hash").agg(
+        simulations=("erreur relative (%)", "size"), **{"erreur relative (%)": ("erreur relative (%)", "mean")})
+    table = table[table["simulations"] >= min_count].sort_values("erreur relative (%)")
+    first = descriptors.drop_duplicates("u_hash").set_index("u_hash")
+    table["commutations"] = first.loc[table.index, "n_switches"].to_numpy()
+    table["taux d'allumage"] = first.loc[table.index, "duty"].to_numpy()
+    table["rang"] = np.arange(1, len(table) + 1)
+    return table
+
+
 def shrinkage_table(pred: Predictions) -> pd.DataFrame:
     """Resserrement des prédictions vers la moyenne, par cible.
 

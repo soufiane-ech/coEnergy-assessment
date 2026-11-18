@@ -6,6 +6,7 @@ catégorielles par panneau, rampe bleue séquentielle pour les grandeurs continu
 
 from collections.abc import Sequence
 
+import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -73,6 +74,54 @@ def plot_band(ax: Axes, x: npt.NDArray, mean: npt.NDArray, std: npt.NDArray,
     """Moyenne et bande ±1 écart-type."""
     ax.fill_between(x, mean - std, mean + std, color=color, alpha=0.18, linewidth=0)
     ax.plot(x, mean, color=color, label=label)
+
+
+MUTED_GREY = "#b9b8b3"
+TRACK_GREY = "#d9d8d4"
+
+
+def figure_title(fig: Figure, main: str, subtitle: str) -> None:
+    """Titre qui énonce le message de la figure, et sous-titre qui décrit ce qu'elle montre."""
+    fig.text(0.01, 0.985, main, fontsize=13, fontweight="bold", color=TEXT_PRIMARY, va="top")
+    fig.text(0.01, 0.925, subtitle, fontsize=9.5, color=TEXT_SECONDARY, va="top")
+
+
+def plot_gain_dumbbell(errors: pd.DataFrame, baseline: str, intermediate: str, retained: str,
+                       names: dict[str, str], labels: dict[str, str] | None = None,
+                       unit: str = "%") -> Figure:
+    """Haltères : pour chaque cible, l'erreur de la référence, d'un modèle intermédiaire et
+    du modèle retenu, triées par gain décroissant (le plus fort gain en haut).
+
+    Args:
+        errors: une ligne par modèle, une colonne par cible.
+        baseline, intermediate, retained: noms des lignes à tracer (gris, orange, bleu).
+        names: libellé affiché de chaque modèle.
+        labels: libellé affiché de chaque cible (par défaut, le nom de la colonne).
+    """
+    labels = labels or {c: c for c in errors.columns}
+    gain = errors.loc[baseline] - errors.loc[retained]
+    order = gain.sort_values().index
+    fig, ax = plt.subplots(figsize=(10, 4.6))
+    fig.subplots_adjust(top=0.80, left=0.10, right=0.97)
+    for yi, target in enumerate(order):
+        a, b, c = (errors.loc[m, target] for m in (baseline, intermediate, retained))
+        ax.plot([c, a], [yi, yi], color=TRACK_GREY, linewidth=6, solid_capstyle="round", zorder=1)
+        ax.scatter([a], [yi], s=70, color=MUTED_GREY, zorder=3)
+        ax.scatter([b], [yi], s=70, color=SERIES[1], zorder=3)
+        ax.scatter([c], [yi], s=110, color=SERIES[0], zorder=4, edgecolor="white", linewidth=1.5)
+        ax.text(c - 0.35, yi, f"{c:.1f} {unit}", ha="right", va="center", fontsize=9,
+                color=TEXT_PRIMARY, fontweight="bold")
+        ax.text(a + 0.35, yi, f"−{a - c:.1f} pt", ha="left", va="center", fontsize=9,
+                color=TEXT_SECONDARY)
+    ax.set_yticks(range(len(order)), [labels[t] for t in order], fontsize=11)
+    lo, hi = errors.loc[retained].min(), errors.loc[baseline].max()
+    ax.set_xlim(lo - 2.8, hi + 2.3)
+    ax.grid(axis="y", visible=False)
+    for x, model, color in [(0.62, baseline, MUTED_GREY), (0.79, intermediate, SERIES[1]),
+                            (0.88, retained, SERIES[0])]:
+        fig.text(x, 0.86, "●", color=color, fontsize=12, va="center")
+        fig.text(x + 0.018, 0.86, names[model], fontsize=9, color=TEXT_SECONDARY, va="center")
+    return fig
 
 
 def plot_pred_vs_true(ax: Axes, y_true: npt.NDArray, y_pred: npt.NDArray, title: str,
