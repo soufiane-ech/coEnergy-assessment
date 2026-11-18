@@ -32,7 +32,7 @@ import pandas as pd
 import torch
 from torch import nn
 
-from coenergy.data import BATCH_NUMBERS, DATA_DIR, PROJECT_ROOT, iter_batches
+from coenergy.data import BATCH_NUMBERS, DATA_DIR, PROJECT_ROOT, ToSaveSimul, iter_batches
 
 SIMS_PER_BATCH = 50_000
 N_STEPS = 480
@@ -159,7 +159,7 @@ def preprocess_inputs(temperature: torch.Tensor, power: torch.Tensor) -> torch.T
     return torch.stack([(t - t[:, :1]) / T_SCALE, u / POWER_W], dim=1)
 
 
-def batch_targets(batch) -> torch.Tensor:
+def batch_targets(batch: ToSaveSimul) -> torch.Tensor:
     """Vecteur cible officiel ``[HLC, *Hb, *CDT]`` d'un batch, labels vérifiés."""
     if tuple(batch.Hb_labels) != EXPECTED_HB_LABELS:
         raise ValueError(f"Hb_labels inattendus : {batch.Hb_labels}")

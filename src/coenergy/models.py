@@ -20,12 +20,13 @@ Noms utilisés par :func:`build_model` et ``train.py`` :
 - ``mean``, ``ridge`` : références ;
 - ``cnn`` : modèle principal ;
 - ``cnn_gru`` : variante d'encodeur inspirée de l'article ;
-- ``cnn_free`` : ablation sans contraintes physiques ;
+- ``cnn_free`` : ablation sans contraintes physiques (entraînée sous le nom ``cnn_free_20ep``) ;
 - ``cnn_hlc`` : ablation mono-cible, même réseau entraîné sur le seul HLC (le cadre de
   l'article), pour mesurer l'effet de l'apprentissage multi-sorties.
 """
 
 import math
+from pathlib import Path
 
 import torch
 from torch import nn
@@ -209,6 +210,7 @@ class CNNGRURegressor(nn.Module):
         self.register_buffer("time", torch.linspace(0.0, 1.0, N_STEPS).view(1, 1, -1))
 
         def conv_block(c_in: int, c_out: int) -> nn.Sequential:
+            """Deux convolutions (noyau 5) avec normalisation, puis division de la longueur par 2."""
             return nn.Sequential(nn.Conv1d(c_in, c_out, 5, padding=2), nn.BatchNorm1d(c_out),
                                  nn.GELU(), nn.Conv1d(c_out, c_out, 5, padding=2),
                                  nn.BatchNorm1d(c_out), nn.GELU(), nn.MaxPool1d(2))
@@ -254,13 +256,13 @@ def count_parameters(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def save_checkpoint(path, model: nn.Module, name: str, config: dict) -> None:
+def save_checkpoint(path: Path | str, model: nn.Module, name: str, config: dict) -> None:
     """Sauvegarde poids, buffers (dont le scaler) et configuration d'un modèle."""
     torch.save({"model_name": name, "config": config, "state_dict": model.state_dict(),
                 "torch_version": torch.__version__}, path)
 
 
-def load_checkpoint(path, map_location: str = "cpu") -> tuple[nn.Module, dict]:
+def load_checkpoint(path: Path | str, map_location: str = "cpu") -> tuple[nn.Module, dict]:
     """Recharge un modèle sauvegardé par :func:`save_checkpoint`, en mode évaluation."""
     ckpt = torch.load(path, map_location=map_location, weights_only=False)
     cfg = ckpt["config"]

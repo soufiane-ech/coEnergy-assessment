@@ -202,6 +202,7 @@ def fit_ridge(x: npt.NDArray, y: npt.NDArray, x_eval: npt.NDArray,
     mx, sx = x.mean(axis=0), x.std(axis=0) + 1e-9
 
     def solve(xa: npt.NDArray, ya: npt.NDArray, lam: float) -> tuple[npt.NDArray, npt.NDArray]:
+        """Coefficients ridge et moyenne des cibles, pour une régularisation ``lam``."""
         z = (xa - mx) / sx
         my = ya.mean(axis=0)
         w = np.linalg.solve(z.T @ z + lam * len(z) * np.eye(z.shape[1]), z.T @ (ya - my))
@@ -284,6 +285,7 @@ def canonical_correlations(group: FixedExcitationGroup, n_components: int = 20,
     scores = (group.t - t_mean) @ vt[:n_components].T
 
     def whitener(a: npt.NDArray) -> tuple[npt.NDArray, npt.NDArray]:
+        """Moyenne et matrice de blanchiment (covariance → identité), estimées sur l'ajustement."""
         mu = a[fit].mean(axis=0)
         w, v = np.linalg.eigh(np.cov(a[fit] - mu, rowvar=False))
         return mu, v @ np.diag(w**-0.5) @ v.T

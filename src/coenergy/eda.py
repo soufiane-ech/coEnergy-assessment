@@ -24,7 +24,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from coenergy.data import BATCH_NUMBERS, PROJECT_ROOT, iter_batches
+from coenergy.data import BATCH_NUMBERS, PROJECT_ROOT, ToSaveSimul, iter_batches
 from coenergy.signals import excitation_features, row_hashes, temperature_features
 
 OUT_DIR = PROJECT_ROOT / "outputs" / "eda"
@@ -99,6 +99,7 @@ class GroupStats:
 
     @classmethod
     def from_sums(cls, sums: dict[str, npt.NDArray]) -> "GroupStats":
+        """Moyennes, écarts-types et corrélations par pas de temps, à partir des sommes exactes."""
         n = int(sums["n"])
         mean_t = sums["s_t"] / n
         var_t = sums["s_tt"] / n - mean_t**2
@@ -124,7 +125,7 @@ class EdaResults:
     meta: dict
 
 
-def _batch_targets(batch) -> npt.NDArray[np.float32]:
+def _batch_targets(batch: ToSaveSimul) -> npt.NDArray[np.float32]:
     hb_labels = tuple(batch.Hb_labels)
     if hb_labels != EXPECTED_HB_LABELS:
         raise ValueError(f"Hb_labels inattendus : {hb_labels}")
@@ -133,7 +134,7 @@ def _batch_targets(batch) -> npt.NDArray[np.float32]:
     ).astype(np.float32)
 
 
-def _batch_inventory(batch, number: int, t: npt.NDArray, u: npt.NDArray,
+def _batch_inventory(batch: ToSaveSimul, number: int, t: npt.NDArray, u: npt.NDArray,
                      s: npt.NDArray) -> dict:
     tensors = {name: getattr(batch, name) for name in
                ("HLC", "Hb", "CDT", "indoor_temperature", "indoor_U", "solicitation")}

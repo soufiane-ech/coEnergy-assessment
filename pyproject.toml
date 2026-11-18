@@ -1,6 +1,8 @@
 [project]
 name = "coenergy"
 version = "0.1.0"
+description = "Prédiction de six indicateurs thermiques d'un bâtiment (HLC, Hb, constantes de temps) à partir d'un essai court de 8 h, en PyTorch"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["torch", "numpy", "matplotlib", "pandas"]
 

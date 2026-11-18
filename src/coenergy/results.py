@@ -19,7 +19,7 @@ from coenergy.evaluation import CAPACITY_LABELS
 
 RUNS_DIR = PROJECT_ROOT / "runs"
 MODEL_ORDER: tuple[str, ...] = ("mean", "ridge", "cnn", "cnn_gru", "cnn_gru_40ep",
-                                 "cnn_gru_large", "cnn_free", "cnn_free_20ep", "cnn_hlc")
+                                 "cnn_gru_large", "cnn_free_20ep", "cnn_hlc")
 MODEL_ROLES: dict[str, str] = {
     "mean": "référence : moyenne d'entraînement",
     "ridge": "référence : régression linéaire (ridge)",
@@ -27,7 +27,6 @@ MODEL_ROLES: dict[str, str] = {
     "cnn_gru": "CNN-GRU, tête physique (modèle retenu)",
     "cnn_gru_40ep": "CNN-GRU entraîné deux fois plus longtemps",
     "cnn_gru_large": "CNN-GRU quatre fois plus grand",
-    "cnn_free": "ablation sans contraintes, 12 époques (essai initial)",
     "cnn_free_20ep": "ablation : CNN sans contraintes physiques",
     "cnn_hlc": "ablation : CNN entraîné sur le seul HLC",
 }
@@ -243,6 +242,7 @@ def worst_cases_profile(pred: Predictions, descriptors: pd.DataFrame, target: st
     d = descriptors.reset_index(drop=True)
 
     def profile(mask: npt.NDArray[np.bool_]) -> dict:
+        """Erreur, valeurs de la cible et descripteurs d'excitation d'un sous-ensemble."""
         return {
             "simulations": int(mask.sum()),
             "erreur relative moyenne (%)": 100 * rel[mask].mean(),
