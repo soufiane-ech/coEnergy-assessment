@@ -5,6 +5,14 @@ $T_{int}(t)$ et la puissance de chauffage appliquée $U(t)$. Il prédit les six 
 thermiques du bâtiment : le coefficient de déperdition $HLC$, sa décomposition
 $HLC_{ext}$ et $HLC_{mit}$ (W/K), et les constantes de temps $\tau_b$, $\tau_n$, $\tau_\infty$ (h).
 
+> **Lire ou réexécuter ?**
+> - **Pour lire le travail**, aucune installation n'est nécessaire : les deux notebooks sont
+>   enregistrés avec tous leurs résultats (figures, tableaux, chiffres). Ils s'affichent
+>   directement sur GitHub ou dans VS Code.
+> - **Pour réexécuter les notebooks**, il faut l'environnement uv et le dossier de
+>   simulations `quentin_house` fourni avec l'assessment, que sa taille (3,9 Go) empêche de
+>   mettre sur GitHub (section 5).
+
 ---
 
 ## 1. Par où commencer
@@ -125,11 +133,17 @@ uv sync
 `uv sync` crée l'environnement `.venv/` à partir de `uv.lock` : PyTorch (version CPU),
 NumPy, pandas, Matplotlib et Jupyter.
 
-**Données.** Le dossier de simulations `quentin_house` fourni avec l'assessment n'est pas
-versionné (3,9 Go). Il se place ainsi :
+**Données.** Créez un dossier `data/` à la racine du projet et copiez-y le dossier
+`quentin_house` fourni avec l'assessment :
 
 ```
-coEnergy-assessment/data/quentin_house/batch_1.pt … batch_20.pt
+coEnergy-assessment/
+└── data/
+    └── quentin_house/
+        ├── batch_1.pt
+        ├── batch_2.pt
+        ├── …
+        └── batch_20.pt
 ```
 
 ---
