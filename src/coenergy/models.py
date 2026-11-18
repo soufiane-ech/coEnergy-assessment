@@ -244,7 +244,8 @@ def build_model(name: str, scaler: TargetScaler, channels: int = 64,
         return CNNRegressor(scaler, channels=channels, hidden=hidden,
                             constrained=(name == "cnn"))
     if name == "cnn_gru":
-        return CNNGRURegressor(scaler, channels=channels, hidden=hidden)
+        # la taille du GRU suit celle du tronc : --hidden règle la capacité du modèle entier
+        return CNNGRURegressor(scaler, channels=channels, hidden=hidden, gru_hidden=hidden)
     raise ValueError(f"Modèle inconnu : {name} (attendu : {MODEL_NAMES})")
 
 
