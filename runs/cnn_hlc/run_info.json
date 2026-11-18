@@ -1,0 +1,57 @@
+{
+  "model": "cnn_hlc",
+  "config": {
+    "model": "cnn_hlc",
+    "data_dir": "/kaggle/input/datasets/soufianeechchafiy/quentin-house/quentin_house",
+    "split_file": "/kaggle/working/coEnergy-assessment/splits/split_seed42.npz",
+    "out_dir": "/kaggle/working/runs/cnn_hlc",
+    "batches": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ],
+    "max_per_batch": null,
+    "epochs": 20,
+    "batch_size": 1024,
+    "lr": 0.003,
+    "weight_decay": 0.0001,
+    "patience": 6,
+    "channels": 64,
+    "hidden": 128,
+    "seed": 42,
+    "device": "auto"
+  },
+  "sizes": {
+    "train": 765063,
+    "val": 95617,
+    "test_random": 95565,
+    "test_new_u": 43755
+  },
+  "trained_targets": [
+    "HLC"
+  ],
+  "n_parameters": 235014,
+  "fit_seconds": 4173.886776924133,
+  "total_seconds": 4236.284042835236,
+  "device": "cuda",
+  "gpu": "Tesla T4",
+  "torch": "2.11.0+cu130",
+  "python": "3.13.16"
+}

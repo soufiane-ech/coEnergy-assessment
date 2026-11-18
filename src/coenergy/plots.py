@@ -75,6 +75,21 @@ def plot_band(ax: Axes, x: npt.NDArray, mean: npt.NDArray, std: npt.NDArray,
     ax.plot(x, mean, color=color, label=label)
 
 
+def plot_pred_vs_true(ax: Axes, y_true: npt.NDArray, y_pred: npt.NDArray, title: str,
+                      unit: str) -> None:
+    """Densité des couples (vrai, prédit) en hexbin, avec la diagonale y = x."""
+    lo, hi = np.quantile(y_true, [0.002, 0.998])
+    ax.hexbin(y_true, y_pred, gridsize=60, bins="log", cmap=BLUES, mincnt=1,
+              extent=(lo, hi, lo, hi))
+    ax.plot([lo, hi], [lo, hi], color=SERIES[1], linewidth=1.2, label="prédiction parfaite")
+    ax.set_xlim(lo, hi)
+    ax.set_ylim(lo, hi)
+    ax.set_xlabel(f"vrai ({unit})")
+    ax.set_ylabel(f"prédit ({unit})")
+    ax.set_title(title)
+    ax.grid(False)
+
+
 def plot_curves_by_value(ax: Axes, x: npt.NDArray, curves: npt.NDArray,
                          values: npt.NDArray, label: str) -> None:
     """Courbes colorées par une grandeur continue (rampe séquentielle), avec barre de couleur.

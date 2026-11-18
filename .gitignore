@@ -1,6 +1,14 @@
+# Données brutes (1M simulations, 3,9 Go) : jamais versionnées
 data/
 *.pt
+# Exception : poids des modèles entraînés (≈ 1 Mo chacun), nécessaires pour recharger
+# les modèles sans GPU. Les données restent exclues par la règle data/ ci-dessus.
+!runs/*/model.pt
+
+# Environnement et caches Python
 .venv/
 __pycache__/
 .ipynb_checkpoints/
+
+# Caches recalculables (EDA, identifiabilité), régénérés automatiquement par les notebooks
 outputs/
