@@ -193,16 +193,42 @@ def forward_explained_variance(group: FixedExcitationGroup, seed: int = 0) -> pd
     })
 
 
-def inverse_r2(group: FixedExcitationGroup, seed: int = 0) -> pd.Series:
+def fit_ridge(x: npt.NDArray, y: npt.NDArray, x_eval: npt.NDArray,
+              lambdas: tuple[float, ...] = (1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0),
+              seed: int = 0) -> npt.NDArray[np.float64]:
+    """Régression linéaire ridge sur entrées standardisées ; le coefficient de
+    régularisation est choisi sur 20 % du jeu d'ajustement, puis le modèle est réajusté
+    sur la totalité."""
+    mx, sx = x.mean(axis=0), x.std(axis=0) + 1e-9
+
+    def solve(xa: npt.NDArray, ya: npt.NDArray, lam: float) -> tuple[npt.NDArray, npt.NDArray]:
+        z = (xa - mx) / sx
+        my = ya.mean(axis=0)
+        w = np.linalg.solve(z.T @ z + lam * len(z) * np.eye(z.shape[1]), z.T @ (ya - my))
+        return w, my
+
+    inner, held = split_indices(len(x), seed=seed)
+    errors = []
+    for lam in lambdas:
+        w, my = solve(x[inner], y[inner], lam)
+        errors.append((((x[held] - mx) / sx @ w + my - y[held]) ** 2).mean())
+    w, my = solve(x, y, lambdas[int(np.argmin(errors))])
+    return (x_eval - mx) / sx @ w + my
+
+
+def inverse_r2(group: FixedExcitationGroup, model: str = "mlp", seed: int = 0) -> pd.Series:
     """Problème inverse : R² de la prédiction des cibles (et des capacités) à partir de T.
 
-    Plafond empirique : excitation fixée, ~11 700 simulations d'ajustement, MLP. Un
-    modèle unique, entraîné sur des excitations mélangées, ne peut pas espérer faire
-    mieux en moyenne.
+    Performance de référence à excitation fixée (~11 700 simulations d'ajustement).
+
+    Args:
+        model: ``"mlp"`` (réseau non linéaire, la référence) ou ``"ridge"`` (régression
+            linéaire, pour mesurer l'apport de la non-linéarité).
     """
     g, labels = inverse_targets(group.y)
     fit, test = split_indices(len(group), seed=seed)
-    pred = fit_mlp(group.t[fit], g[fit], group.t[test], seed=seed)
+    fitter = fit_mlp if model == "mlp" else fit_ridge
+    pred = fitter(group.t[fit], g[fit], group.t[test], seed=seed)
     return pd.Series(r2_score(g[test], pred), index=labels)
 
 
@@ -214,9 +240,14 @@ def canonical_correlations(group: FixedExcitationGroup, n_components: int = 20,
     jeu d'ajustement) ; les directions canoniques sont estimées sur le jeu d'ajustement et
     les corrélations mesurées sur le jeu de test (pas de sur-ajustement).
 
+    Une « combinaison » est une somme pondérée des cinq paramètres (standardisés) du
+    bâtiment ; l'analyse cherche celles que la courbe T reflète le plus fidèlement. La
+    corrélation canonique mesure cette fidélité : proche de 1, la combinaison se retrouve
+    presque exactement à partir de T ; proche de 0, elle est invisible dans T.
+
     Returns:
-        Les corrélations canoniques (test), et pour chaque direction les poids des
-        paramètres standardisés qui composent la combinaison lue dans T (normalisés à 1).
+        Les corrélations canoniques (test), et pour chaque combinaison les poids des
+        paramètres standardisés qui la composent (normalisés à 1 en valeur absolue).
     """
     params = physical_parameters(group.y)
     fit, test = split_indices(len(group), seed=seed)
@@ -242,6 +273,6 @@ def canonical_correlations(group: FixedExcitationGroup, n_components: int = 20,
         coef = np.linalg.lstsq(z[fit], b[fit, i], rcond=None)[0]
         coef = coef / np.abs(coef).max()
         weights.append(coef * np.sign(coef[np.argmax(np.abs(coef))]))
-    names = [f"direction {i + 1}" for i in range(k)]
+    names = [f"combinaison {i + 1}" for i in range(k)]
     return (pd.Series(corr, index=names, name="corrélation canonique (test)"),
             pd.DataFrame(weights, index=names, columns=PARAMETER_LABELS))

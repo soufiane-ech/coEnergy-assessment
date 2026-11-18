@@ -1,5 +1,8 @@
 # Données brutes (1M simulations, 3,9 Go) : jamais versionnées
 data/
+
+# Documents de l'assessment (énoncé, article, échanges) : non publiés
+docs/
 *.pt
 # Exception : poids des modèles entraînés (≈ 1 Mo chacun), nécessaires pour recharger
 # les modèles sans GPU. Les données restent exclues par la règle data/ ci-dessus.
